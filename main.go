@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -15,6 +14,7 @@ import (
 func main() {
 	config := &Config{}
 	multiconfig.New().MustLoad(config)
+	config.Parse()
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -35,19 +35,24 @@ func main() {
 				if !ok {
 					return
 				}
-				if !config.FileExists(event.Name) {
-					continue
-				}
 				if config.Debug {
 					log.Printf("fsnotify: %s", event)
 				}
+
+				/*
+					if event.Op == fsnotify.Remove {
+						err = watcher.Remove(event.Name)
+						if err != nil {
+							log.Println(err)
+							continue
+						}
+					}
+				*/
+
 				if event.Op == fsnotify.Write || event.Op == fsnotify.Create {
 					config.SignalPid(event.Name)
 				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					log.Println("error:", err)
-				}
+			case err := <-watcher.Errors:
 				log.Println("error:", err)
 			case <-quit:
 				log.Println("exiting on signal")
@@ -62,11 +67,10 @@ func main() {
 
 func addWatchers(w *fsnotify.Watcher, config *Config) {
 	for _, v := range config.Files() {
-		dir := filepath.Dir(v)
-		log.Printf("adding watcher for %s", dir)
-		err := w.Add(dir)
+		log.Printf("adding watcher for %s ", v.realPath)
+		err := w.Add(v.realPath)
 		if err != nil {
-			log.Printf("error adding watcher %s: %s\n", v, err)
+			log.Printf("error adding watcher %s: %s\n", v.realPath, err)
 		}
 	}
 }

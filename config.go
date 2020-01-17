@@ -3,43 +3,76 @@ package main
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 )
 
+type file struct {
+	originalPath string
+	realPath     string
+	signal       syscall.Signal
+	pid          int
+}
 type Config struct {
 	// Format: /tmp/foo:USR2:1 (file:signal:pid)
 	Watch string
 	Debug bool
+	files []*file
 }
 
-func (c *Config) Files() []string {
+func (c *Config) Files() []*file {
+	return c.files
+}
+
+func (c *Config) ByOriginalPath(f string) *file {
+	for _, v := range c.files {
+		if v.realPath == f {
+			return v
+		}
+	}
+	return nil
+}
+func (c *Config) ByRealPath(f string) *file {
+	for _, v := range c.files {
+		if v.realPath == f {
+			return v
+		}
+	}
+	return nil
+}
+
+func (c *Config) Parse() {
 	list := strings.Split(c.Watch, ",")
-	files := []string{}
 	for _, v := range list {
 		tmp := strings.Split(v, ":")
 		if len(tmp) != 3 {
 			log.Fatal("invalid config")
 		}
-
-		if sig := getSignal(tmp[1]); sig == 0 {
+		sig := getSignal(tmp[1])
+		if sig == 0 {
 			log.Fatalf("unknown signal %s in config", tmp[1])
 		}
 
-		files = append(files, tmp[0])
+		f, err := filepath.EvalSymlinks(tmp[0])
+		if err != nil {
+			log.Fatalf("error finding symlink for %s: %s\n", f, err)
+		}
+
+		pid, err := strconv.Atoi(tmp[2])
+		if err != nil {
+			log.Fatalf("error finding pid in config %s: %s\n", v, err)
+		}
+		c.files = append(c.files, &file{
+			originalPath: tmp[0],
+			realPath:     f,
+			signal:       sig,
+			pid:          pid,
+		})
 	}
-	return files
 }
 
-func (c *Config) FileExists(file string) bool {
-	for _, v := range c.Files() {
-		if v == file {
-			return true
-		}
-	}
-	return false
-}
 func (c *Config) SignalPid(file string) {
 	list := strings.Split(c.Watch, ",")
 	var v string
