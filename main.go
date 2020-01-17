@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -39,17 +40,17 @@ func main() {
 					log.Printf("fsnotify: %s", event)
 				}
 
-				/*
-					if event.Op == fsnotify.Remove {
-						err = watcher.Remove(event.Name)
-						if err != nil {
-							log.Println(err)
-							continue
-						}
+				if event.Op == fsnotify.Remove { // support the way k8s changes mounted configmaps
+					f := config.ByRealPath(event.Name)
+					if f == nil {
+						continue
 					}
-				*/
+					updateWatcher(config, watcher, f)
+					config.SignalPid(event.Name)
+					continue
+				}
 
-				if event.Op == fsnotify.Write || event.Op == fsnotify.Create {
+				if event.Op == fsnotify.Write {
 					config.SignalPid(event.Name)
 				}
 			case err := <-watcher.Errors:
@@ -65,12 +66,36 @@ func main() {
 	wg.Wait()
 }
 
+func updateWatcher(config *Config, w *fsnotify.Watcher, f *file) {
+	err := w.Remove(f.realPath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if config.Debug {
+		log.Println("removed watcher:", f.realPath)
+	}
+
+	f.realPath, err = filepath.EvalSymlinks(f.originalPath)
+	if err != nil {
+		log.Println("error updateWatcher find realPath:", err)
+		return
+	}
+	addWatcher(w, f.realPath)
+	if config.Debug {
+		log.Println("added watcher:", f.realPath)
+	}
+}
+
 func addWatchers(w *fsnotify.Watcher, config *Config) {
 	for _, v := range config.Files() {
-		log.Printf("adding watcher for %s ", v.realPath)
-		err := w.Add(v.realPath)
-		if err != nil {
-			log.Printf("error adding watcher %s: %s\n", v.realPath, err)
-		}
+		addWatcher(w, v.realPath)
+	}
+}
+func addWatcher(w *fsnotify.Watcher, path string) {
+	log.Printf("adding watcher for %s ", path)
+	err := w.Add(path)
+	if err != nil {
+		log.Printf("error adding watcher %s: %s\n", path, err)
 	}
 }

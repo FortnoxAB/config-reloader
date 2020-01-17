@@ -26,14 +26,6 @@ func (c *Config) Files() []*file {
 	return c.files
 }
 
-func (c *Config) ByOriginalPath(f string) *file {
-	for _, v := range c.files {
-		if v.realPath == f {
-			return v
-		}
-	}
-	return nil
-}
 func (c *Config) ByRealPath(f string) *file {
 	for _, v := range c.files {
 		if v.realPath == f {
