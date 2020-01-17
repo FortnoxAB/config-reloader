@@ -11,6 +11,7 @@ import (
 type Config struct {
 	// Format: /tmp/foo:USR2:1 (file:signal:pid)
 	Watch string
+	Debug bool
 }
 
 func (c *Config) Files() []string {

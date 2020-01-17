@@ -38,12 +38,10 @@ func main() {
 				if !config.FileExists(event.Name) {
 					continue
 				}
-				if event.Op == fsnotify.Write {
-					log.Println("modified file:", event.Name)
-					config.SignalPid(event.Name)
+				if config.Debug {
+					log.Printf("fsnotify: %s", event)
 				}
-				if event.Op == fsnotify.Create {
-					log.Println("created file:", event.Name)
+				if event.Op == fsnotify.Write || event.Op == fsnotify.Create {
 					config.SignalPid(event.Name)
 				}
 			case err, ok := <-watcher.Errors:
