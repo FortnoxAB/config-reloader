@@ -1,0 +1,21 @@
+{
+	"serviceName": "config-reloader",
+	"apiEndpoints": [
+		"/api/config-reloader"
+	],
+	"frontendEndpoint": "config-reloader",
+	"frontendPath": "",
+	"language": "go",
+	"types": [
+		"backend"
+	],
+	"environments": {
+		"default": {
+			"replicas": "2"
+		},
+		"prod": {
+			"replicas": "5"
+		}
+	},
+	"team": "sudo"
+}
