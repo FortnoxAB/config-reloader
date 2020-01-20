@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,7 +15,7 @@ type file struct {
 	originalPath string
 	realPath     string
 	signal       syscall.Signal
-	pid          int
+	pidOrPath    string
 }
 type Config struct {
 	// Format: /tmp/foo:USR2:1 (file:signal:pid)
@@ -52,32 +54,26 @@ func (c *Config) Parse() {
 			log.Fatalf("error finding symlink for %s: %s\n", f, err)
 		}
 
-		pid, err := strconv.Atoi(tmp[2])
-		if err != nil {
-			log.Fatalf("error finding pid in config %s: %s\n", v, err)
-		}
 		c.files = append(c.files, &file{
 			originalPath: tmp[0],
 			realPath:     f,
 			signal:       sig,
-			pid:          pid,
+			pidOrPath:    tmp[2],
 		})
 	}
 }
 
-func (c *Config) SignalPid(file string) {
-	list := strings.Split(c.Watch, ",")
-	var v string
-	for _, v = range list {
-		if strings.HasPrefix(v, file) {
+func (c *Config) SignalPid(path string) {
+	var v *file
+	for _, v = range c.Files() {
+		if v.realPath == path {
 			break
 		}
 	}
-	tmp := strings.Split(v, ":")
-	pid, err := strconv.Atoi(tmp[2])
-	signal := tmp[1]
+
+	pid, err := getPID(v.pidOrPath)
 	if err != nil {
-		log.Printf("error finding pid in config %s: %s\n", v, err)
+		log.Println(err)
 		return
 	}
 
@@ -87,12 +83,12 @@ func (c *Config) SignalPid(file string) {
 		return
 	}
 
-	err = p.Signal(getSignal(signal))
+	err = p.Signal(v.signal)
 	if err != nil {
 		log.Printf("error sending signal to pid %d: %s\n", pid, err)
 		return
 	}
-	log.Printf("sent signal %s to %d\n", signal, pid)
+	log.Printf("sent signal %s to %d\n", v.signal, pid)
 }
 
 func getSignal(s string) syscall.Signal {
@@ -108,4 +104,21 @@ func getSignal(s string) syscall.Signal {
 	}
 
 	return 0
+}
+
+// getPID returns PID as integer from string or from a pidfile
+func getPID(s string) (int, error) {
+	pid, err := strconv.Atoi(s)
+	if err != nil {
+		//try to find using pid file instead
+		content, err := ioutil.ReadFile(s)
+		if err != nil {
+			return 0, fmt.Errorf("unable to open pidfile %s: %w", s, err)
+		}
+		pid, err = strconv.Atoi(strings.TrimSpace(string(content)))
+		if err != nil {
+			return 0, fmt.Errorf("error finding pid in config %s: %w", s, err)
+		}
+	}
+	return pid, nil
 }
