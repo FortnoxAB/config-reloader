@@ -67,23 +67,19 @@ func main() {
 }
 
 func updateWatcher(config *Config, w *fsnotify.Watcher, f *file) {
-	err := w.Remove(f.realPath)
-	if err != nil {
-		log.Println(err)
-		return
-	}
 	if config.Debug {
-		log.Println("removed watcher:", f.realPath)
+		log.Printf("updateWatcher: %#v\n", f)
 	}
 
-	f.realPath, err = filepath.EvalSymlinks(f.originalPath)
+	rp, err := filepath.EvalSymlinks(f.originalPath)
 	if err != nil {
 		log.Println("error updateWatcher find realPath:", err)
 		return
 	}
+	f.realPath = rp
 	addWatcher(w, f.realPath)
 	if config.Debug {
-		log.Println("added watcher:", f.realPath)
+		log.Printf("added watcher: %#v\n", f)
 	}
 }
 
