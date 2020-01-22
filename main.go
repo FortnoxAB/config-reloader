@@ -1,16 +1,21 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"log"
-	"os"
-	"os/signal"
+	"net/http"
 	"path/filepath"
 	"sync"
-	"syscall"
+	"sync/atomic"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/jonaz/gograce"
 	"github.com/koding/multiconfig"
 )
+
+var watcherCount int64
 
 func main() {
 	config := &Config{}
@@ -23,8 +28,7 @@ func main() {
 	}
 	defer watcher.Close()
 
-	quit := make(chan os.Signal)
-	signal.Notify(quit, os.Interrupt, syscall.SIGQUIT, syscall.SIGTERM)
+	srv, shutdown := gograce.NewServerWithTimeout(5 * time.Second)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -45,6 +49,7 @@ func main() {
 					if f == nil {
 						continue
 					}
+					atomic.AddInt64(&watcherCount, -1)
 					updateWatcher(config, watcher, f)
 					config.SignalPid(event.Name)
 					continue
@@ -55,7 +60,7 @@ func main() {
 				}
 			case err := <-watcher.Errors:
 				log.Println("error:", err)
-			case <-quit:
+			case <-shutdown:
 				log.Println("exiting on signal")
 				return
 			}
@@ -63,7 +68,25 @@ func main() {
 	}()
 
 	addWatchers(watcher, config)
+
+	http.HandleFunc("/health", healthHandler)
+
+	srv.Handler = http.DefaultServeMux
+	srv.Addr = ":8080"
+
+	err = srv.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Println(err)
+	}
 	wg.Wait()
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	if watcherCount <= 0 {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "no watchers found!")
+	}
+	fmt.Fprintf(w, "ok")
 }
 
 func updateWatcher(config *Config, w *fsnotify.Watcher, f *file) {
@@ -94,4 +117,5 @@ func addWatcher(w *fsnotify.Watcher, path string) {
 	if err != nil {
 		log.Printf("error adding watcher %s: %s\n", path, err)
 	}
+	atomic.AddInt64(&watcherCount, 1)
 }
