@@ -1,7 +1,4 @@
-FROM scratch
-#COPY ui/build/ /build
-#COPY ui/index.html /
-#ENV ZONEINFO=/zoneinfo.zip
-#COPY zoneinfo.zip /
+FROM gcr.io/distroless/static-debian11:nonroot
 COPY config-reloader /
+USER nonroot
 ENTRYPOINT ["/config-reloader"]
