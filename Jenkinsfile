@@ -1,6 +1,6 @@
 library 'whatsout'
 
-node('go1.13') {
+node('go1.19') {
 	container('run'){
 		def newTag = ''
 		def tag = ''
@@ -50,4 +50,3 @@ node('go1.13') {
 		notifyBitbucket()
 	}
 }
-
