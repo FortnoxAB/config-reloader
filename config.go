@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 type file struct {
@@ -44,7 +45,7 @@ func (c *Config) Parse() {
 		if len(tmp) != 3 {
 			log.Fatal("invalid config")
 		}
-		sig := getSignal(tmp[1])
+		sig := unix.SignalNum("SIG" + tmp[1])
 		if sig == 0 {
 			log.Fatalf("unknown signal %s in config", tmp[1])
 		}
@@ -91,27 +92,12 @@ func (c *Config) SignalPid(path string) {
 	log.Printf("sent signal %s to %d\n", v.signal, pid)
 }
 
-func getSignal(s string) syscall.Signal {
-	switch s {
-	case "USR1":
-		return syscall.SIGUSR1
-	case "USR2":
-		return syscall.SIGUSR2
-	case "INT":
-		return syscall.SIGINT
-	case "KILL":
-		return syscall.SIGKILL
-	}
-
-	return 0
-}
-
 // getPID returns PID as integer from string or from a pidfile
 func getPID(s string) (int, error) {
 	pid, err := strconv.Atoi(s)
 	if err != nil {
 		//try to find using pid file instead
-		content, err := ioutil.ReadFile(s)
+		content, err := os.ReadFile(s)
 		if err != nil {
 			return 0, fmt.Errorf("unable to open pidfile %s: %w", s, err)
 		}
