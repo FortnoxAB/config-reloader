@@ -51,7 +51,7 @@ func main() {
 					}
 					atomic.AddInt64(&watcherCount, -1)
 					updateWatcher(config, watcher, f)
-					config.SignalPid(event.Name)
+					config.SignalPid(f.realPath)
 					continue
 				}
 
