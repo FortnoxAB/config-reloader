@@ -65,11 +65,10 @@ func (c *Config) Parse() {
 }
 
 func (c *Config) SignalPid(path string) {
-	var v *file
-	for _, v = range c.Files() {
-		if v.realPath == path {
-			break
-		}
+	v := c.ByRealPath(path)
+	if v == nil {
+		log.Printf("signalpid: file not found by real path: %s\n", path)
+		return
 	}
 
 	pid, err := getPID(v.pidOrPath)
